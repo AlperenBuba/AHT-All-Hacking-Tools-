@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 Environment Setup:
 Clone the repository and install the Python dependencies:
 
@@ -46,6 +47,8 @@ f.write(readme_content)
 
 Terms of Use: By downloading or using AHT, you acknowledge that you are solely responsible for your actions. The author (Alperen Buba) is not liable for any misuse, damage, or illegal activities caused by this software. It is your responsibility to obey all local, state, and federal laws. If you do not agree to these terms, do not use or download this software.
 =======
+=======
+>>>>>>> 0e5a4ed595617433b757ee0ff69d9a969065afb4
 # AHT-All-Hacking-Tools-
 A tool that lets you easily use all the best hacking tools via terminal menus (COMING SOON)
 
@@ -53,4 +56,7 @@ https://www.youtube.com/@Alperenbuba/videos
 
 
 NOTE: This tool is developed strictly for **educational purposes, cybersecurity awareness, and authorized penetration testing**. The entire legal responsibility arising from the usage of this tool against unauthorized systems or unpermitted networks belongs solely to the **end-user**. The developer assumes no liability and is not responsible for any misuse, data loss, or legal violations caused by this program. By using this software, you agree to these terms.
+<<<<<<< HEAD
+>>>>>>> 0e5a4ed595617433b757ee0ff69d9a969065afb4
+=======
 >>>>>>> 0e5a4ed595617433b757ee0ff69d9a969065afb4
