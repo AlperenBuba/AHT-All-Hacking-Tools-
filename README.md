@@ -1,6 +1,6 @@
 # AHT (All Hacking Tools)
 
-AHT, terminal menüleri aracılığıyla en iyi siber güvenlik ve hacking araçlarını kolayca kullanmanı sağlayan bir araç setidir.
+It is a toolkit that allows you to easily use the best cybersecurity and hacking tools via terminal menus.
 
 **Youtube Kanalı:** [Alperen Buba](https://www.youtube.com/@Alperenbuba/videos)
 
