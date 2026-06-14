@@ -10,18 +10,15 @@ It is a toolkit that allows you to easily use the best cybersecurity and hacking
 ## 🚀 Environment Setup
 Clone the repository and install the Python dependencies:
 
-\`\`\`bash
+
 git clone https://github.com/AlperenBuba/AHT-All-Hacking-Tools-.git<br>
 cd AHT<br>
 pip install -r requirements.txt
-\`\`\`
 
 ## 💻 Execution
 Launch the primary interface with root privileges:
 
-\`\`\`bash
 sudo python3 main.py
-\`\`\`
 
 ## 🎮 User Interface Workflow
 To maintain a high-speed workflow, AHT utilizes specific input patterns:
