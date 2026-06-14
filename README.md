@@ -11,8 +11,8 @@ It is a toolkit that allows you to easily use the best cybersecurity and hacking
 Clone the repository and install the Python dependencies:
 
 \`\`\`bash
-git clone https://github.com/AlperenBuba/AHT-All-Hacking-Tools-.git
-cd AHT
+git clone https://github.com/AlperenBuba/AHT-All-Hacking-Tools-.git<br>
+cd AHT<br>
 pip install -r requirements.txt
 \`\`\`
 
