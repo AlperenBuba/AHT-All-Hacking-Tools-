@@ -1,117 +1,151 @@
-# AHT v1.0b — All Hacking Tools
+<h1 align="center">⚔️ AHT - All Hacking Tools ⚔️</h1>
 
-Çok fonksiyonlu siber güvenlik araç seti. Terminal menüleri üzerinden ARP spoofing/MITM, WiFi deauth, SMS bomber, port tarama, MAC değiştirme, DDoS ve daha fazlası.
+<p align="center">
+  <b>Version:</b> 1.0b &nbsp;|&nbsp; <b>Author:</b> Alperen Buba &nbsp;|&nbsp;
+  <b>Platform:</b> 🪟 Windows / 🐧 Linux
+</p>
 
-**YouTube Kanalı:** [Alperen Buba](https://www.youtube.com/@Alperenbuba/videos)
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.8%2B-blue?logo=python">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey">
+  <img src="https://img.shields.io/badge/license-GPLv3-red">
+</p>
 
----
+<p align="center">
+  <b>🔍 OSINT &nbsp;|&nbsp; 📱 SMS Bomber &nbsp;|&nbsp; 🌐 Network Tools &nbsp;|&nbsp; 🎣 Phishing</b>
+</p>
 
-## ⚠️ Yasal Uyarı
-
-Bu araç yalnızca **eğitim amaçlı, siber güvenlik farkındalığı ve yetkili penetrasyon testleri** için geliştirilmiştir. Yetkisiz sistemlerde veya izinsiz ağlarda kullanımı tamamen kullanıcının sorumluluğundadır. Geliştirici hiçbir şekilde sorumluluk kabul etmez.
-
----
-
-## Kurulum
-
-### 1. Npcap Kurulumu (Windows için zorunlu)
-
-ARP spoofing, sniffing ve L2 paket işlemleri için Npcap gereklidir.
-
-**PowerShell'i Yönetici olarak aç** ve şu komutları çalıştır:
-
-```powershell
-cd C:\Users\alper\OneDrive\Documents\GitHub\AHT-All-Hacking-Tools-
-Set-ExecutionPolicy Bypass -Scope Process -Force
-.\install.ps1
-```
-
-Bu komutlar:
-- Npcap kurulum dosyasını indirir ve açar
-- Python bağımlılıklarını yükler (`scapy`, `colorama`, `requests`)
-- Windows IP forwarding kayıt defteri anahtarını etkinleştirir
-
-**Npcap kurulumunda "WinPcap API-compatible Mode" seçeneğini işaretlemeyi unutma.**
-
-Alternatif olarak manuel indir: https://npcap.com/dist/npcap-1.79.exe
-
-### 2. Python Bağımlılıkları
-
-Elle kurmak istersen:
-
-```bash
-pip install scapy colorama requests
-```
-
-### 3. IP Forwarding (Windows)
-
-`install.ps1` otomatik yapar. Elle yapmak için:
-
-```powershell
-reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v IPEnableRouter /t REG_DWORD /d 1 /f
-```
-
-*Değişikliğin etkin olması için bilgisayarı yeniden başlatman gerekebilir.*
+AHT, OSINT, SMS bombing, network tools, phishing, port scanning ve daha fazlasını tek bir CLI aracında birleştiren kapsamlı bir güvenlik test aracıdır.
 
 ---
 
-## Çalıştırma
+<h2>🚀 Özellikler</h2>
 
-```bash
-python main.py
-```
+<h3>📱 1. SMS Bomber</h3>
 
-Windows'ta yönetici yetkisi gerektiren işlemler için PowerShell'i yönetici olarak açıp çalıştır.
+<ul>
+  <li><b>Türk API'leri (33 servis):</b> KahveDunyasi, BIM, EnglishHome, Hayatsu, HizliEcza, MetroTR, FileMarket, Komagene, UysalMarket, Yapp, LittleCaesars, Domino's, Frink, Bodrum, Pidem, Koton, Alixavien, JimmyKey, WMF, Suiste, KimGb, TiklaGelsin, Naosstars, Akasya, Akbati, Porty, Tasdelen, KofteciYusuf, Coffy, Hamidiye, Orwi</li>
+  <li><b>Uluslararası API'ler:</b> Textbelt, Callmebot</li>
+  <li>⚡ 3 thread + random servis seçimi</li>
+  <li>♾️ Sınırsız mod (Turbo), CTRL+C ile durdurma</li>
+  <li>⏱️ Random delay (rate-limit koruması)</li>
+</ul>
+
+<h3>📶 2. WiFi Deauth</h3>
+<ul>
+  <li>🔨 Aircrack-ng (aireplay-ng)</li>
+  <li>💥 MDK4</li>
+  <li>🐍 Scapy Deauth</li>
+  <li>📡 Monitor mod desteği</li>
+</ul>
+
+<h3>🛡️ 3. Network Tools (Bettercap)</h3>
+<ul>
+  <li>🎭 ARP Spoofing</li>
+  <li>🔎 Ağ taraması</li>
+  <li>⚙️ Bettercap entegrasyonu</li>
+</ul>
+
+<h3>🌍 4. IP Geolocation</h3>
+<ul>
+  <li>📍 IP adresi konum sorgulama</li>
+  <li>🏢 ISS ve şehir bilgisi</li>
+</ul>
+
+<h3>🔌 5. Port Scanner</h3>
+<ul>
+  <li>🔓 TCP bağlantı noktası tarama</li>
+  <li>⚡ Hızlı ve detaylı mod</li>
+</ul>
+
+<h3>🔧 6. MAC Changer</h3>
+<ul>
+  <li>🔄 Ağ arayüzü MAC adresi değiştirme</li>
+  <li>🎲 Rastgele MAC oluşturma</li>
+</ul>
+
+<h3>💣 7. DDoS Tool</h3>
+<ul>
+  <li>🌊 HTTP Flood saldırıları</li>
+  <li>🎯 Hedef IP/port desteği</li>
+</ul>
+
+<h3>🔍 8. OSINT (Açık Kaynak İstihbaratı)</h3>
+<ul>
+  <li>👤 <b>Kullanıcı Tara:</b> Sherlock ile sosyal medya hesap tarama</li>
+  <li>🌐 <b>Web Ara:</b> DuckDuckGo üzerinden arama</li>
+  <li>📞 <b>Telefon Numarası OSINT:</b> Numara analizi, operatör tespiti, txt kayıt</li>
+  <li>🔎 <b>Google Dorking:</b> Google'da dork sorguları, sonuçları txt kaydetme</li>
+</ul>
+
+<h3>🎣 9. Phishing (Oltalama)</h3>
+<ul>
+  <li>📄 <b>Sahte Sayfa Oluşturucu:</b> Instagram, Facebook, Google, Twitter/X</li>
+  <li>🌐 <b>Phishing Sunucusu:</b> HTTP sunucu ile ziyaretçi bilgileri toplama (IP, lokasyon, tarayıcı)</li>
+  <li>☁️ <b>Cloudflare Tunnel:</b> Cloudflared ile herkese açık URL oluşturma</li>
+</ul>
 
 ---
 
-## Kullanım
+<h2>📥 Kurulum</h2>
 
-- Menülerde `0` girerek bir önceki menüye dönülür.
-- IP, port, arayüz gibi sorularda **boş ENTER** işlemi iptal eder ve ana menüye döner.
-- Tüm araçlar **CTRL+C** ile durdurulabilir.
+<h3>🪟 Windows</h3>
 
-### Ana Menü
+<pre lang="batch">install.bat</pre>
 
-| No | Araç | Açıklama |
-|----|------|----------|
-| 1 | SMS Bomber | Hedef numaraya SMS gönderimi |
-| 2 | WiFi Deauth | WiFi istemcilerini bağlantıdan düşürme (3 yöntem) |
-| 3 | Network Tools | Ağ tarama, ARP spoofing/MITM, sniffing, bağlantı kesme, engelleme |
-| 4 | IP Geolocation | IP adresi konum sorgulama |
-| 5 | Port Scanner | Hedef IP üzerinde port tarama |
-| 6 | MAC Changer | Ağ arayüzü MAC adresi değiştirme |
-| 7 | DDoS Tool | HTTP/SYN/UDP saldırıları |
+veya:
 
-### Network Tools Alt Menüsü
+<pre lang="batch">pip install -r requirements.txt</pre>
 
-| No | Araç | Açıklama |
-|----|------|----------|
-| 1 | Ağ Taraması | Ağdaki cihazları bul (ARP taraması) |
-| 2 | ARP Spoofing (MITM) | Hedef-gateway arasında ARP zehirleme + canlı trafik izleme |
-| 3 | HTTP/DNS Sniffing | Ağdaki HTTP istekleri ve DNS sorgularını canlı izle |
-| 4 | Bağlı Cihazlar | Ağdaki aktif cihazları listele |
-| 5 | Bağlantıyı Kes | Hedef cihazın internet bağlantısını kes (ARP + IPv6 zehirleme) |
-| 6 | İnternet Engelle/Kaldır | Hedefe giden trafiği engelle veya kaldır |
+<h3>🐧 Linux</h3>
+
+<pre lang="bash">pip install -r requirements.txt</pre>
+
+<h3>📦 Alternatif (teker teker)</h3>
+
+<pre lang="bash">pip install scapy colorama requests beautifulsoup4 duckduckgo_search</pre>
+
+<h3>📡 Npcap (Windows - Ağ işlemleri için)</h3>
+
+<p>Npcap, Windows'ta ağ taraması, ARP spoofing ve WiFi deauth gibi işlemler için gereklidir.</p>
+<p><code>install.bat</code> dosyasını <b>Yönetici olarak çalıştırın</b> (Sağ tık → Yönetici olarak çalıştır).</p>
 
 ---
 
-## Gereksinimler
+<h2>▶️ Kullanım</h2>
 
-| Bağımlılık | Versiyon | Açıklama |
-|------------|----------|----------|
-| Python | 3.8+ | Çalışma ortamı |
-| Npcap | 1.79+ | Paket yakalama (Windows) |
-| scapy | 2.5+ | Ağ paket işleme |
-| colorama | 0.4+ | Renkli terminal çıktısı |
-| requests | 2.28+ | HTTP istekleri |
+<pre lang="bash">python main.py</pre>
+
+<p>Menüde gezinmek için sayı tuşlarını kullanın. 🌐 Dil değiştirmek için <kbd>L</kbd> tuşuna basın.</p>
+
+<h3>📋 Ana Menü</h3>
+
+<pre>
+┌─────────────────────────────────────────┐
+│  [1] 📱 SMS Bomber                      │
+│  [2] 📶 WiFi Deauth                     │
+│  [3] 🛡️ Network Tools                   │
+│  [4] 🌍 IP Geolocation                  │
+│  [5] 🔌 Port Scanner                    │
+│  [6] 🔧 MAC Changer                     │
+│  [7] 💣 DDoS Tool                       │
+│  [8] 🔍 OSINT                           │
+│  [9] 🎣 Phishing                        │
+│  [L] 🌐 Dil Değiştir / Switch Language  │
+│  [0] ❌ Çıkış                           │
+└─────────────────────────────────────────┘
+</pre>
 
 ---
 
-## Geliştirici
+<h2>⚠️ Uyarı</h2>
 
-- **Alperen Buba**
-- **Proje:** AHT (All Hacking Tools)
-- **Lisans:** MIT
+<blockquote>
+  Bu araç yalnızca <b>eğitim</b> ve <b>güvenlik testi</b> amaçlıdır. Kullanımından doğacak tüm yasal sorumluluk kullanıcıya aittir. İzinsiz sistemlere karşı kullanılması <b>yasa dışı</b> olabilir.
+</blockquote>
 
-> "Knowledge is the ultimate security vulnerability."
+---
+
+<p align="center">
+  <sub>Built with ❤️ by Alperen Buba</sub>
+</p>
