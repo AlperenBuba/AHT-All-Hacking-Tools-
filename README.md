@@ -5,8 +5,8 @@
 <h1 align="center">AHT - All Hacking Tools</h1>
 
 <p align="center">
-  <b>Version:</b> 1.1 &nbsp;|&nbsp; <b>Author:</b> Alperen Buba &nbsp;|&nbsp;
-  <b>Platform:</b> Windows / Linux
+  <b>Version:</b> 1.0b &nbsp;|&nbsp; <b>Author:</b> Alperen Buba &nbsp;|&nbsp;
+  <b>Platform:</b> 🪟 Windows / 🐧 Linux
 </p>
 
 <p align="center">
