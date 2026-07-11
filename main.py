@@ -152,6 +152,7 @@ DIL = {
         "telefon_no_gir": "Telefon numarası (05XX, Enter=iptal)",
         "kac_sonuc": "Kaç sonuç istiyorsun?",
         "kaydet_sor": "Sonuçlar kaydedilsin mi?",
+        "tumu": "Tümü",
         "site_klonla": "Site Klonla (Gerçek Sayfa Kopyala)",
         "hedef_url": "Hedef URL (https://...)",
         "sayfa_adi": "Sayfa adı",
@@ -283,6 +284,7 @@ DIL = {
         "telefon_no_gir": "Phone number (05XX, Enter=cancel)",
         "kac_sonuc": "How many results?",
         "kaydet_sor": "Save results?",
+        "tumu": "All",
         "site_klonla": "Clone Site (Real Page Copy)",
         "hedef_url": "Target URL (https://...)",
         "sayfa_adi": "Page name",
@@ -1549,6 +1551,24 @@ def telefon_osint():
         ok(_("kaydedildi").format(dosya=dosya))
     input(f"\n  {Y}{_('enter')}{S} ")
 
+def _parse_google_results(elems):
+    res = []
+    for g in elems:
+        a = g.select_one("a[href]")
+        h3 = g.select_one("h3")
+        if a and h3:
+            href = a["href"]
+            if href.startswith("/url?q="):
+                href = href.split("&")[0].replace("/url?q=", "")
+            if href.startswith("http"):
+                res.append((h3.get_text(strip=True), href))
+    if not res:
+        for a in elems[0].parent.find_all("a", href=True) if elems else []:
+            h3 = a.find("h3")
+            if h3 and a["href"].startswith("http") and "google" not in a["href"]:
+                res.append((h3.get_text(strip=True), a["href"]))
+    return res
+
 def google_dorking():
     baslik(_("google_dorking"))
     dork = input(f"  {_('dork_sorgu')}: ").strip()
@@ -1560,13 +1580,13 @@ def google_dorking():
         ("5", "TXT", "txt"), ("6", "CSV", "csv"),
         ("7", "JSON", "json"), ("8", "XML", "xml"),
         ("9", "ZIP/RAR", 'zip OR rar'), ("10", "SQL", "sql"),
-        ("11", "LOG", "log"), ("0", _("tumu")),
+        ("11", "LOG", "log"), ("0", _("tumu"), ""),
     ]
     ok("Dosya türü seçin:")
-    for num, etiket, _ in ft_list:
+    for num, etiket, __ in ft_list:
         print(f"  {W}{num}.{S} {etiket}")
     sec = input(f"  {_('secim')}: ").strip()
-    ft_map = {num: ft for num, _, ft in ft_list}
+    ft_map = {num: ft for num, __, ft in ft_list}
     filetype = ft_map.get(sec, "")
     sorgu = f"{dork} filetype:{filetype}" if filetype else dork
     try: limit = int(input(f"  {_('kac_sonuc')} (1-50): ").strip() or "15")
@@ -1574,26 +1594,47 @@ def google_dorking():
     if limit < 1: limit = 15
     warn(f"  Google'da {_('web_ara')} taranıyor...")
     try:
-        h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"}
-        r = requests.get("https://www.google.com/search", params={"q": sorgu, "num": limit}, headers=h, timeout=15)
+        h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+             "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+        r = requests.get("https://www.google.com/search", params={"q": sorgu}, headers=h, timeout=15)
         if r.status_code != 200:
             fail(f"Google yanit vermedi (HTTP {r.status_code})"); input(f"  {Y}{_('enter')}{S} "); return
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(r.text, "html.parser")
+        if "captcha" in r.text.lower() or "unusual traffic" in r.text.lower():
+            fail("Google CAPTCHA engelledi. Daha sonra tekrar deneyin."); input(f"  {Y}{_('enter')}{S} "); return
         sonuclar = []
-        for g in soup.select("div.g"):
-            a = g.select_one("a[href]")
-            h3 = g.select_one("h3")
-            if a and h3:
-                href = a["href"]
-                if href.startswith("/url?q="):
-                    href = href.split("&")[0].replace("/url?q=", "")
-                if href.startswith("http"):
-                    sonuclar.append((h3.get_text(strip=True), href))
+        sel1 = soup.select("div.g, .MjjYud, div[data-snc]")
+        sel2 = soup.select("div[data-hveid]")
+        sel3 = soup.select("div[data-sokoban-container]")
+        if sel1: sonuclar = _parse_google_results(sel1)
+        if not sonuclar and sel2: sonuclar = _parse_google_results(sel2)
+        if not sonuclar and sel3: sonuclar = _parse_google_results(sel3)
         if not sonuclar:
             for a in soup.select("a[href^='http']"):
                 h3 = a.select_one("h3")
-                if h3 and a["href"].startswith("http"):
+                if h3 and "google" not in a["href"]:
+                    sonuclar.append((h3.get_text(strip=True), a["href"]))
+        if not sonuclar:
+            for a in soup.find_all("a", href=True):
+                h3 = a.find("h3")
+                if h3 and a["href"].startswith("http") and "google" not in a["href"]:
+                    sonuclar.append((h3.get_text(strip=True), a["href"]))
+        if not sonuclar:
+            google_url = f"https://www.google.com/search?q={urllib.parse.quote(sorgu)}"
+            info(f"Google linki (tarayicinizda acin): {google_url}")
+            warn("Google sonuç döndürmedi, DuckDuckGo ile deneniyor...")
+            try:
+                from ddgs import DDGS
+                ddgs = DDGS(); ddgs._timeout = 20
+                sonuclar = [(r["title"], r["href"]) for r in ddgs.text(sorgu, max_results=limit)]
+            except:
+                pass
+        if not sonuclar:
+            for a in soup.select("a[href^='http']"):
+                h3 = a.select_one("h3")
+                if h3 and "google" not in a["href"]:
                     sonuclar.append((h3.get_text(strip=True), a["href"]))
         if not sonuclar:
             for a in soup.find_all("a", href=True):
