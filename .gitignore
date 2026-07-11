@@ -1,6 +1,8 @@
+*.spec
+build/
+dist/
+*.ico
+venv/
 __pycache__/
 *.pyc
-.DS_Store
-*.log
-sites/kayitlar.txt
-.env
+*.pyo
