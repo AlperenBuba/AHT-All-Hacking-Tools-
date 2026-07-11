@@ -93,7 +93,11 @@ AHT is a comprehensive security testing tool that combines OSINT, SMS bombing, n
 
 <h2>📥 Installation</h2>
 
-<h3>🪟 Windows</h3>
+<h3>🪟 Windows (Önerilen / Recommended)</h3>
+
+<p><b>Hazır .exe indir:</b> <a href="https://alperenbuba.github.io/TurkByteSoftware/">https://alperenbuba.github.io/TurkByteSoftware/</a></p>
+
+<p>veya kaynak koddan çalıştırmak için:</p>
 
 <pre lang="batch">install.bat</pre>
 

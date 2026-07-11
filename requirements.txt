@@ -1,6 +1,0 @@
-scapy
-colorama
-requests
-beautifulsoup4
-duckduckgo_search
-selenium

@@ -95,6 +95,10 @@ AHT, OSINT, SMS bombing, network tools, phishing, port scanning ve daha fazlası
 
 <h3>🪟 Windows</h3>
 
+<p><b>Hazır .exe indir:</b> <a href="https://alperenbuba.github.io/TurkByteSoftware/">https://alperenbuba.github.io/TurkByteSoftware/</a></p>
+
+<p>veya kaynak koddan çalıştırmak için:</p>
+
 <pre lang="batch">install.bat</pre>
 
 veya:
