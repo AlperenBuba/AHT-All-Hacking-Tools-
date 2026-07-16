@@ -73,7 +73,7 @@ class App:
     def T(self,e,t=None): return e if self.lang=="EN" else (t or e)
     def dil(self): self.lang="TR" if self.lang=="EN" else "EN"; self.show_main()
     def kbd_olustur(self):
-        self.kbd_caps=False; self.kbd_harfler=[]; kf=("DejaVu Sans",13)
+        self.kbd_caps=False; self.kbd_harfler=[]; kf=("DejaVu Sans",12)
         for ri,row in enumerate(["QWERTYUIOP","ASDFGHJKL"]):
             for ci,k in enumerate(row): self.kbd_tus(k,ri,ci,kf)
         self.kbd_tus("BS",1,9,kf)
@@ -84,7 +84,7 @@ class App:
         self.kbd_tus("SP",4,0,kf,cs=5); self.kbd_tus("@",4,5,kf); self.kbd_tus("▼",4,6,kf)
         self.kbd_tus("SİL",4,7,kf); self.kbd_tus("↵",4,8,kf,cs=2)
         for i in range(10): self.kb_frame.grid_columnconfigure(i,weight=1)
-        for i in range(5): self.kb_frame.grid_rowconfigure(i,weight=1)
+        for i in range(5): self.kb_frame.grid_rowconfigure(i,weight=1,minsize=36)
     def kbd_tus(self,k,r,c,fn,cs=1):
         cmd=lambda k2=k: self.kbd_yaz(k2)
         bg="#555"; fg="#ddd"; kt=k
@@ -97,7 +97,7 @@ class App:
         b=tk.Button(self.kb_frame,text=kt,command=cmd,bg=bg,fg=fg,font=fn,
                   relief="raised",bd=3,activebackground="#777",activeforeground="#fff"
                   )
-        b.grid(row=r,column=c,columnspan=cs,padx=2,pady=3,sticky="nsew")
+        b.grid(row=r,column=c,columnspan=cs,padx=2,pady=2,sticky="nsew")
         if k.isalpha() and len(k)==1: self.kbd_harfler.append((b,k))
         return b
     def kbd_show(self,w):
@@ -174,11 +174,13 @@ class App:
     def tx(self,r,c,**kw):
         rs=kw.pop("rowspan",1); cs=kw.pop("colspan",3)
         kw.setdefault("bg",BG); kw.setdefault("fg",FG); kw.setdefault("bd",0)
-        kw.setdefault("font",FS); kw.setdefault("height",3); kw.setdefault("width",42)
-        t=tk.Text(self.cf,**kw)
-        t.grid(row=r,column=c,pady=1,padx=1,sticky="ew",rowspan=rs,columnspan=cs)
-        t.bind("<FocusIn>",lambda ev: self.kbd_show(ev.widget))
-        return t
+        kw.setdefault("font",FS); kw.setdefault("height",3); kw.setdefault("width",38)
+        f=tk.Frame(self.cf,bg=BG); f.grid(row=r,column=c,sticky="nsew",rowspan=rs,columnspan=cs)
+        f.grid_columnconfigure(0,weight=1); f.grid_rowconfigure(0,weight=1)
+        t=tk.Text(f,**kw); t.grid(row=0,column=0,sticky="nsew")
+        sb=tk.Scrollbar(f,orient="vertical",command=t.yview,bg="#555",activebackground="#777",troughcolor="#333")
+        sb.grid(row=0,column=1,sticky="ns")
+        t.config(yscrollcommand=sb.set); return t
     def ac(self,t,c,r,bg="#008800"): self.bt(t,c,r,0,colspan=3,bg=bg)
     def cb(self,r,c,vs,v,w=12):
         m=ttk.Combobox(self.cf,textvariable=v,values=vs,state="readonly",width=w,font=F)
@@ -201,7 +203,7 @@ class App:
         tk.Label(self.cf,text="AHT - All Hacking Tools",bg=BG,fg=TF,font=FT).grid(row=0,column=0,columnspan=3,pady=3)
         for t,c,r,c2 in [(self.T("Network","Ag"),self.m_net,1,0),(self.T("Pentest","Sizma"),self.m_pent,1,1),
             (self.T("OSINT","OSINT"),self.m_osint,1,2),(self.T("Attack","Saldiri"),self.m_atk,2,0),
-            (self.T("Tools","Araclar"),self.m_tools,2,1),(self.T("Scanner","Tarayici"),self.m_scan,2,2),
+            (self.T("Tools","Araclar"),self.m_tools,2,1),(self.T("Internet","Internet"),self.m_internet,2,2),
             (self.T("My IP","IP'm"),self.myip,3,0),(self.T("Update","Guncelle"),self.upd,3,1),
             (self.T("Exit","Cikis"),self.root.destroy,3,2)]:
             self.bt(t,c,r,c2,bg="#660000" if t in (self.T("Exit","Cikis"),) else BTN)
@@ -916,6 +918,45 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
                 except: pass
             self.otostart()
         self.bt(self.T("ENABLE","AKTIF ET"),ac,6,0,colspan=3,bg="#005500") if not aktif else self.bt(self.T("DISABLE","KAPAT"),kapat,6,0,colspan=3,bg="#660000")
+
+    # ===================== INTERNET =====================
+    def m_internet(self):
+        self.ps=self.show_main; self.clr(); self.cg(8,3); self.bk(); self.tt(self.T("INTERNET","INTERNET"))
+        self.lb(self.T("SSID:","SSID:"),2,0); e=self.en(2,1,w=20)
+        self.lb(self.T("Pass:","Sifre:"),3,0); p=self.en(3,1,w=20)
+        t=self.tx(4,0,height=4)
+        t.config(cursor="hand2")
+        t.tag_config("net",foreground="#8cf",font=("DejaVu Sans",10,"bold"))
+        def tikla(ev):
+            idx=t.index(f"@{ev.x},{ev.y}"); line=t.get(f"{idx} linestart",f"{idx} lineend").strip()
+            ssid=line.split(" (")[0].strip() if " (" in line else ""
+            if ssid: e.delete(0,tk.END); e.insert(0,ssid)
+        t.bind("<Button-1>",tikla)
+        def tara():
+            t.delete(1.0,tk.END); t.insert(tk.END,self.T("Scanning...\n","Taranıyor...\n")); self.f.update()
+            try:
+                r=subprocess.run(["nmcli","-t","-f","SSID,SIGNAL,SECURITY","dev","wifi","list"],
+                               capture_output=True,text=True,timeout=15)
+                for l in r.stdout.strip().split("\n"):
+                    if ":" in l:
+                        ssid,sinyal,guv=l.split(":",2)
+                        if ssid: t.insert(tk.END,f"{ssid} ({sinyal}% {guv})\n","net")
+                if not r.stdout.strip(): t.insert(tk.END,self.T("No networks","Ag bulunamadi"))
+            except FileNotFoundError: t.insert(tk.END,self.T("nmcli not found\nInstall: sudo apt install network-manager","nmcli bulunamadi"))
+            except Exception as ex: t.insert(tk.END,f"{self.T('Error','Hata')}: {ex}")
+        def baglan():
+            ssid=e.get().strip(); pwd=p.get().strip()
+            if not ssid: return
+            t.delete(1.0,tk.END); t.insert(tk.END,self.T(f"Connecting to {ssid}...\n",f"{ssid}'e baglaniliyor...\n")); self.f.update()
+            try:
+                cmd=["nmcli","dev","wifi","connect",ssid]
+                if pwd: cmd+=["password",pwd]
+                r=subprocess.run(cmd,capture_output=True,text=True,timeout=30)
+                if r.returncode==0: t.insert(tk.END,self.T("Connected!\n","Baglandi!\n"))
+                else: t.insert(tk.END,f"{self.T('Failed','Hata')}: {r.stderr[:200]}")
+            except Exception as ex: t.insert(tk.END,f"{self.T('Error','Hata')}: {ex}")
+        self.bt(self.T("SCAN","TARA"),tara,7,0,bg="#005500")
+        self.bt(self.T("CONNECT","BAGLAN"),baglan,7,2,bg="#005500")
 
     # ===================== SCANNER =====================
     def m_scan(self):
