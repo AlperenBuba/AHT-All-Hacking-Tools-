@@ -308,6 +308,10 @@ DIL = {
         "wifi_deauth": "WiFi Koparma",
         "sms_bomber": "SMS Bombacısı",
         "ip_geo": "IP Konum",
+        "ip_tools": "IP Araçları",
+        "my_ip": "IP Adresim",
+        "yerel_ip": "Yerel IP",
+        "yerel_ip_yok": "Yerel IP bulunamadı",
         "port_scanner": "Port Tara",
         "mac_changer": "MAC Değiştir",
         "ddos": "DDoS Aracı",
@@ -447,6 +451,10 @@ DIL = {
         "wifi_deauth": "WiFi Deauth",
         "sms_bomber": "SMS Bomber",
         "ip_geo": "IP Geolocation",
+        "ip_tools": "IP Tools",
+        "my_ip": "My IP",
+        "yerel_ip": "Local IP",
+        "yerel_ip_yok": "Local IP not found",
         "port_scanner": "Port Scanner",
         "mac_changer": "MAC Changer",
         "ddos": "DDoS Tool",
@@ -1572,6 +1580,37 @@ def ip_geolocation():
         fail(_("baglanti_hatasi").format(e=e))
     input(f"  {Y}{_('enter')}{S} "); return "Home"
 
+def my_ip():
+    clear_screen(); baslik(_("my_ip"))
+    info(_("sorgulaniyor").format(ip=""))
+    try:
+        req = urllib.request.Request("http://api.ipify.org", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            pub = r.read().decode().strip()
+        ok(f"{_('ip_adresi')}: {pub}")
+    except:
+        fail(_("baglanti_hatasi").format(e=""))
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        loc = s.getsockname()[0]; s.close()
+        ok(f"{_('yerel_ip')}: {loc}")
+    except:
+        fail(_("yerel_ip_yok"))
+    input(f"  {Y}{_('enter')}{S} "); return "Home"
+
+def ip_tools_menu():
+    global LANG
+    while True:
+        baslik(_("ip_tools"))
+        menu_items = [("1", _("ip_geo")), ("2", _("my_ip")), ("0", _("onceki"))]
+        secim = secim_menu(menu_items)
+        if secim.upper() == "L":
+            LANG = "EN" if LANG == "TR" else "TR"; continue
+        if secim == "1": ip_geolocation()
+        elif secim == "2": my_ip()
+        elif secim == "0": return "Home"
+
 def port_scanner():
     clear_screen(); baslik(_("port_scanner"))
     hedef = soru(f"{_('ip_domain')} (0={_('iptal')})")
@@ -2457,7 +2496,7 @@ while True:
         durum_cubugu()
         secim = secim_menu([
             ("1",_("sms_bomber")), ("2",_("wifi_deauth")), ("3",_("network_tools")),
-            ("4",_("ip_geo")), ("5",_("port_scanner")), ("6",_("mac_changer")),
+            ("4",_("ip_tools")), ("5",_("port_scanner")), ("6",_("mac_changer")),
             ("7",_("ddos")), ("8",_("osint")), ("9",_("phishing")),
             ("10",_("msf_baslik")), ("L",_("dil_degistir")), ("0",_("cikis")),
         ])
@@ -2468,7 +2507,7 @@ while True:
             case "1": Location = "sms_bomber"
             case "2": Location = "wifi_deauth"
             case "3": Location = "bettercap"
-            case "4": Location = "ip_geolocation"
+            case "4": Location = "ip_tools"
             case "5": Location = "port_scanner"
             case "6": Location = "mac_changer"
             case "7": Location = "ddos_tool"
@@ -2481,7 +2520,7 @@ while True:
     elif Location == "sms_bomber": Location = sms_bomber()
     elif Location == "wifi_deauth": Location = wifi_deauth()
     elif Location == "bettercap": Location = bettercap_menu()
-    elif Location == "ip_geolocation": Location = ip_geolocation()
+    elif Location == "ip_tools": Location = ip_tools_menu()
     elif Location == "port_scanner": Location = port_scanner()
     elif Location == "mac_changer": Location = mac_changer()
     elif Location == "ddos_tool": Location = ddos_tool()
